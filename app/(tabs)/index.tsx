@@ -8,7 +8,9 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { supabase } from '@/src/data/services/supabaseClient';
 import { PlansUseCase } from '@/src/domain/useCases/plans/PlansUseCase';
 import { useAuth } from '@/src/presentation/hooks/useAuth';
+import useContrataciones from '@/src/presentation/hooks/useContrataciones';
 import { globalStyles } from '@/src/styles/globalStyles';
+import { colors } from '@/src/styles/theme';
 import { useRouter } from 'expo-router';
 
 export default function HomeScreen() {
@@ -130,12 +132,7 @@ export default function HomeScreen() {
               </>
             ) : (
               <>
-                <TouchableOpacity style={[globalStyles.button, globalStyles.buttonSecondary, styles.buttonFull, { marginHorizontal: 6 }]} onPress={() => router.push({ pathname: '/plan/crear', params: { id: String(item.id) } })}>
-                  <Text style={globalStyles.buttonText}>Detalles</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[globalStyles.button, globalStyles.buttonPrimary, styles.buttonFull, { marginHorizontal: 6 }]} onPress={() => Alert.alert('Contratación', 'Funcionalidad de contratación pendiente')}>
-                  <Text style={globalStyles.buttonText}>Contratar</Text>
-                </TouchableOpacity>
+                      <ContratarButton usuario={usuario} item={item} router={router} />
               </>
             )}
           </View>
@@ -407,3 +404,34 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
 });
+
+function ContratarButton({ usuario, item, router }: { usuario: any; item: any; router: any }) {
+  const { crear, loading } = useContrataciones();
+
+  return (
+    <TouchableOpacity
+      style={[globalStyles.button, styles.buttonFull, { marginHorizontal: 6, backgroundColor: colors.primaryDark }]}
+      onPress={async () => {
+        try {
+          if (!usuario) {
+            Alert.alert('Error', 'Debes iniciar sesión para contratar');
+            return;
+          }
+          const res = await crear(String(usuario.id), String(item.id));
+          if (!res.success) {
+            Alert.alert('Error', res.error ?? 'No se pudo crear la contratación');
+            return;
+          }
+          Alert.alert('Listo', 'Tu solicitud de contratación fue creada');
+          router.push('/(tabs)/contrataciones');
+        } catch (e: any) {
+          console.error('Error contratando:', e);
+          Alert.alert('Error', e?.message ?? String(e));
+        }
+      }}
+      disabled={loading}
+    >
+      <Text style={globalStyles.buttonText}>{loading ? 'Enviando...' : 'Contratar'}</Text>
+    </TouchableOpacity>
+  );
+}
