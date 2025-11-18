@@ -1,15 +1,18 @@
 import { ThemedView } from '@/components/themed-view';
+import { supabase } from '@/src/data/services/supabaseClient';
 import { useAuth } from '@/src/presentation/hooks/useAuth';
 import useContrataciones from '@/src/presentation/hooks/useContrataciones';
 import { globalStyles } from '@/src/styles/globalStyles';
 import { colors } from '@/src/styles/theme';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import React, { useCallback } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function ContratacionesScreen() {
   const { usuario } = useAuth();
   const { items, loading, listarPorUsuario, listarTodos, cambiarEstado } = useContrataciones();
+  const router = useRouter();
 
   useFocusEffect(
     useCallback(() => {
@@ -22,7 +25,22 @@ export default function ContratacionesScreen() {
   function renderItem({ item }: { item: any }) {
     const plan = item.planes_moviles;
     const fecha = new Date(item.created_at).toISOString().split('T')[0];
-    const clienteNombre = (item.usuarios && (item.usuarios.nombre ?? (Array.isArray(item.usuarios) ? item.usuarios[0]?.nombre : undefined))) ?? 'Cliente';
+
+    // Resolver de forma robusta la estructura de usuario embebido
+    function resolveUsuario(obj: any) {
+      if (!obj) return null;
+      const u = obj.usuarios ?? obj.usuario ?? null;
+      if (!u) {
+        if (obj.usuario_id) return { id: obj.usuario_id, nombre: obj.usuario_nombre ?? null };
+        return null;
+      }
+      if (Array.isArray(u)) return u[0] ?? null;
+      return u;
+    }
+
+    const usuarioObj = resolveUsuario(item);
+    const clienteNombre = usuarioObj?.nombre ?? 'Cliente';
+    const clienteId = usuarioObj?.id ?? null;
     return (
       <View style={[globalStyles.card, styles.card]}> 
         {plan?.imagen_url ? <Image source={{ uri: plan.imagen_url }} style={styles.thumb} /> : null}
@@ -66,12 +84,38 @@ export default function ContratacionesScreen() {
                   <Text style={globalStyles.buttonText}>✕ Rechazar</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[globalStyles.button, styles.chatButton]} onPress={() => Alert.alert('Chat', 'Funcionalidad pendiente')}>
+                <TouchableOpacity
+                  style={[globalStyles.button, styles.chatButton]}
+                  onPress={() => {
+                    if (!clienteId) return Alert.alert('Error', 'No se encontró el usuario');
+                    // Enviamos tambien el nombre para mostrarla en la pantalla de chat
+                    router.push({ pathname: '/(tabs)/chat', params: { userId: String(clienteId), nombre: clienteNombre } });
+                  }}
+                >
                   <Text style={globalStyles.buttonText}>💬</Text>
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={[globalStyles.button, styles.chatButton]} onPress={() => Alert.alert('Chat', 'Funcionalidad pendiente')}>
+              <TouchableOpacity
+                style={[globalStyles.button, styles.chatButton]}
+                onPress={async () => {
+                  try {
+                    // Buscar un asesor disponible (primer registro)
+                    const { data: asesor, error } = await supabase
+                      .from('usuarios')
+                      .select('id, nombre')
+                      .eq('rol', 'asesor')
+                      .limit(1)
+                      .single();
+
+                    if (error || !asesor) return Alert.alert('Error', 'No se encontró un asesor disponible');
+
+                    router.push({ pathname: '/(tabs)/chat', params: { userId: String(asesor.id), nombre: asesor.nombre } });
+                  } catch (e) {
+                    Alert.alert('Error', 'No se pudo abrir el chat');
+                  }
+                }}
+              >
                 <Text style={globalStyles.buttonText}>💬 Chat con Asesor</Text>
               </TouchableOpacity>
             )}

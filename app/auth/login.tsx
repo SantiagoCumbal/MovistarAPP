@@ -20,13 +20,21 @@ export default function LoginScreen() {
   const [cargando, setCargando] = useState(false);
 
   // HOOKS
-  const { iniciarSesion, cerrarSesion } = useAuth();
+  const { iniciarSesion, cerrarSesion, iniciarComoInvitado } = useAuth();
   const router = useRouter();
 
   /**
    * Manejar inicio de sesión
    */
   const handleLogin = async (expectedRole: "asesor" | "usuario") => {
+    // Si el usuario pulsa 'Iniciar como Usuario' sin credenciales,
+    // permitir entrada como invitado localmente (demo/QA).
+    if (expectedRole === "usuario" && !email && !password) {
+      iniciarComoInvitado();
+      router.replace("/(tabs)");
+      return;
+    }
+
     // VALIDACIÓN: Campos vacíos
     if (!email || !password) {
       Alert.alert("Error", "Por favor completa todos los campos");

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 // Replaced ParallaxScrollView to avoid nesting a FlatList inside a ScrollView.
 import { ThemedText } from '@/components/themed-text';
@@ -8,19 +8,21 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { supabase } from '@/src/data/services/supabaseClient';
 import { PlansUseCase } from '@/src/domain/useCases/plans/PlansUseCase';
 import { useAuth } from '@/src/presentation/hooks/useAuth';
-import useContrataciones from '@/src/presentation/hooks/useContrataciones';
+import { useContrataciones } from '@/src/presentation/hooks/useContrataciones';
 import { globalStyles } from '@/src/styles/globalStyles';
 import { colors } from '@/src/styles/theme';
 import { useRouter } from 'expo-router';
 
 export default function HomeScreen() {
-  const { usuario } = useAuth();
+  const { usuario, esInvitado, cerrarSesion } = useAuth();
   const router = useRouter();
   const [planes, setPlanes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const searchDebounceRef = useRef<number | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalPlan, setModalPlan] = useState<any | null>(null);
 
   async function load(query?: string) {
     setLoading(true);
@@ -101,7 +103,18 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.buttonsContainer}>
-            {usuario?.rol === 'asesor' ? (
+            {/* Guest (invitado) sees only "Detalle" which opens a modal with extended info */}
+            {(esInvitado) ? (
+              <TouchableOpacity
+                style={[globalStyles.button, styles.buttonFull, styles.buttonDetails]}
+                onPress={() => {
+                  setModalPlan(item);
+                  setModalVisible(true);
+                }}
+              >
+                <Text style={globalStyles.buttonText}>Detalle</Text>
+              </TouchableOpacity>
+            ) : usuario?.rol === 'asesor' ? (
               <>
                 <TouchableOpacity style={[globalStyles.button, globalStyles.buttonPrimary, styles.buttonFull, { marginHorizontal: 6 }]} onPress={() => router.push({ pathname: '/plan/editar', params: { id: String(item.id) } })}>
                   <Text style={globalStyles.buttonText}>Editar</Text>
@@ -146,6 +159,21 @@ export default function HomeScreen() {
       {/* Static header box (keeps visual identity, avoids nested scrolls) */}
       <View style={styles.headerBox}>
         <Text style={styles.headerBoxText}>{usuario?.rol === 'asesor' ? 'Panel de Asesor' : 'Bienvenido a Tigo'}</Text>
+        {esInvitado ? (
+          <TouchableOpacity
+            style={styles.headerBackButton}
+            onPress={async () => {
+              try {
+                await cerrarSesion();
+              } catch {
+                // ignore
+              }
+              router.replace('/splash');
+            }}
+          >
+            <Text style={styles.headerBackText}>Volver</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
         <ThemedView style={{ padding: 16, flex: 1 }}>
@@ -164,6 +192,22 @@ export default function HomeScreen() {
             <Text style={styles.mainBoxSubtitle}>Descubre nuestros planes móviles</Text>
           </View>
         )}
+
+        {/* Banner profesional solo para invitados */}
+        {(esInvitado) ? (
+          <View style={[globalStyles.card, styles.guestBanner]}>
+            <Text style={styles.guestBannerTitle}>¿Te interesa algún plan?</Text>
+            <Text style={styles.guestBannerText}>Inicia sesión para contratar y gestionar tus solicitudes. Accede a descuentos exclusivos y seguimiento personalizado.</Text>
+            <View style={{ flexDirection: 'row', marginTop: 10 }}>
+              <TouchableOpacity style={[globalStyles.button, globalStyles.buttonPrimary, { marginRight: 8 }]} onPress={() => router.push('/auth/login')}>
+                <Text style={globalStyles.buttonText}>Iniciar sesión</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[globalStyles.button, globalStyles.buttonSecondary]} onPress={() => router.push('/auth/registro')}>
+                <Text style={globalStyles.buttonText}>Registrarse</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
 
         {/* Search box (below main box and create button) */}
         <View style={styles.searchBox}>
@@ -214,6 +258,34 @@ export default function HomeScreen() {
             contentContainerStyle={{ paddingBottom: 24 }}
           />
         )}
+        {/* Modal para ver detalles ampliados (solo usado por invitados) */}
+        <Modal visible={modalVisible} animationType="slide" onRequestClose={() => setModalVisible(false)}>
+          <ThemedView style={{ flex: 1, padding: 16 }}>
+            <ScrollView>
+              {modalPlan ? (
+                <View style={[globalStyles.card, { padding: 12 }]}> 
+                  {modalPlan.imagen_url ? <Image source={{ uri: modalPlan.imagen_url }} style={{ width: '100%', height: 200, borderRadius: 8 }} /> : null}
+                  <Text style={[globalStyles.title, { fontSize: 20, marginTop: 12 }]}>{modalPlan.titulo}</Text>
+                  {modalPlan.promocion ? <View style={[styles.promoBadge, { alignSelf: 'flex-start', marginTop: 8 }]}><Text style={styles.promoText}>{modalPlan.promocion}</Text></View> : null}
+                  <Text style={{ marginTop: 12, color: '#374151' }}>{modalPlan.descripcion}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+                    <Text style={{ fontWeight: '700', fontSize: 18 }}>${typeof modalPlan.precio === 'string' ? parseFloat(modalPlan.precio).toFixed(2) : (modalPlan.precio ?? 0).toFixed(2)}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={{ marginRight: 8 }}>{modalPlan.datos_gb ?? '—'} GB</Text>
+                      <Text>{modalPlan.minutos ?? '—'} min</Text>
+                    </View>
+                  </View>
+                </View>
+              ) : null}
+            </ScrollView>
+
+            <View style={{ marginTop: 12 }}>
+              <TouchableOpacity style={[globalStyles.button, globalStyles.buttonPrimary]} onPress={() => setModalVisible(false)}>
+                <Text style={globalStyles.buttonText}>Cerrar</Text>
+              </TouchableOpacity>
+            </View>
+          </ThemedView>
+        </Modal>
       </ThemedView>
     </ThemedView>
   );
@@ -249,6 +321,19 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     textAlign: 'center',
+  },
+  headerBackButton: {
+    position: 'absolute',
+    right: 12,
+    top: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.12)'
+  },
+  headerBackText: {
+    color: '#fff',
+    fontWeight: '600'
   },
   mainBox: {
     borderRadius: 12,
@@ -403,17 +488,34 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     resizeMode: 'cover',
   },
+  guestBanner: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+  },
+  guestBannerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  guestBannerText: {
+    marginTop: 6,
+    color: '#334155',
+    fontSize: 13,
+  },
 });
 
 function ContratarButton({ usuario, item, router }: { usuario: any; item: any; router: any }) {
   const { crear, loading } = useContrataciones();
+  const { esInvitado } = useAuth();
 
   return (
     <TouchableOpacity
       style={[globalStyles.button, styles.buttonFull, { marginHorizontal: 6, backgroundColor: colors.primaryDark }]}
       onPress={async () => {
         try {
-          if (!usuario) {
+          if (!usuario || esInvitado) {
             Alert.alert('Error', 'Debes iniciar sesión para contratar');
             return;
           }

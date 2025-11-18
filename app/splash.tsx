@@ -1,3 +1,4 @@
+import { useAuth } from '@/src/presentation/hooks/useAuth';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -5,6 +6,7 @@ import { colors, fontSize, spacing } from '../src/styles/theme';
 
 export default function SplashScreen() {
     const router = useRouter();
+    const { iniciarComoInvitado } = useAuth();
 
     return (
         <View style={styles.container}>
@@ -14,7 +16,14 @@ export default function SplashScreen() {
 
         <TouchableOpacity
             style={[styles.button, styles.buttonPrimary]}
-            onPress={() => router.push('/(tabs)')}
+            onPress={() => {
+                try {
+                    iniciarComoInvitado();
+                } catch {
+                    // ignore — still navigate
+                }
+                router.replace('/index_invitado');
+            }}
         >
             <Text style={styles.buttonText}>Explorar como Invitado</Text>
         </TouchableOpacity>

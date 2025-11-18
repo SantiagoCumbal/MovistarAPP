@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useAuth } from "../src/presentation/hooks/useAuth";
 
 export default function RootLayout() {
-  const { usuario, cargando } = useAuth();
+  const { usuario, cargando, esInvitado } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const rootNavigationState = useRootNavigationState();
@@ -21,15 +21,17 @@ export default function RootLayout() {
       // Mostrar la pantalla de bienvenida/splash antes de ir al login
       router.replace("/splash");
     }
-    // REGLA 2: Si HAY usuario y está en auth → Redirigir a tabs
-    else if (usuario && enAuth) {
+    // REGLA 2: Si HAY usuario real (no invitado) y está en auth → Redirigir a tabs
+    // Permitimos que el invitado abra las pantallas de auth para iniciar sesión.
+    else if (usuario && !esInvitado && enAuth) {
       router.replace("/(tabs)");
     }
-  }, [usuario, segments, cargando, rootNavigationState?.key]);
+  }, [usuario, segments, cargando, rootNavigationState?.key, esInvitado, router]);
 
   return (
     <Stack>
       <Stack.Screen name="splash" options={{ headerShown: false }} />
+      <Stack.Screen name="index_invitado" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="auth" options={{ headerShown: false }} />
     </Stack>
