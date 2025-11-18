@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native';
 
 // Replaced ParallaxScrollView to avoid nesting a FlatList inside a ScrollView.
 import { ThemedText } from '@/components/themed-text';
@@ -17,12 +17,19 @@ export default function HomeScreen() {
   const [planes, setPlanes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const searchDebounceRef = useRef<number | null>(null);
 
-  async function load() {
+  async function load(query?: string) {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase.from('planes_moviles').select('*').order('created_at', { ascending: false });
+      let builder: any = supabase.from('planes_moviles').select('*').order('created_at', { ascending: false });
+      const q = (query ?? '').trim();
+      if (q) {
+        builder = builder.ilike('titulo', `%${q}%`);
+      }
+      const { data, error } = await builder;
       if (error) throw error;
       setPlanes(data ?? []);
     } catch (e: any) {
@@ -35,6 +42,23 @@ export default function HomeScreen() {
   useEffect(() => {
     load();
   }, []);
+
+  // debounce search queries
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    // small debounce to avoid excessive calls
+    // use window.setTimeout to get a number (works in RN too)
+    searchDebounceRef.current = (window as any).setTimeout(() => {
+      load(search);
+      searchDebounceRef.current = null;
+    }, 300) as unknown as number;
+
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [search]);
 
   function renderPlan({ item }: { item: any }) {
     const precio = typeof item.precio === 'string' ? parseFloat(item.precio).toFixed(2) : (item.precio ?? 0).toFixed(2);
@@ -49,9 +73,30 @@ export default function HomeScreen() {
         )}
 
         <View style={{ marginTop: 12, width: '100%' }}>
-          <Text style={[globalStyles.title, styles.titleSmall]}>{item.titulo}</Text>
+          <View style={styles.cardHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[globalStyles.title, styles.titleSmall]}>{item.titulo}</Text>
+              {item.promocion ? (
+                <View style={styles.promoBadge}>
+                  <Text style={styles.promoText}>{item.promocion}</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={[globalStyles.title, styles.priceHighlight]}>${precio}</Text>
+          </View>
+
           {item.descripcion ? <Text style={[globalStyles.textPrimary, styles.descSmall]}>{item.descripcion}</Text> : null}
-          <Text style={[globalStyles.title, styles.priceSmall]}>${precio}</Text>
+
+          <View style={styles.metaRow}>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaIcon}>📶</Text>
+              <Text style={styles.metaText}>{item.datos_gb ?? '—'} GB</Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaIcon}>📞</Text>
+              <Text style={styles.metaText}>{item.minutos ?? '—'} min</Text>
+            </View>
+          </View>
 
           <View style={styles.buttonsContainer}>
             {usuario?.rol === 'asesor' ? (
@@ -106,7 +151,7 @@ export default function HomeScreen() {
         <Text style={styles.headerBoxText}>{usuario?.rol === 'asesor' ? 'Panel de Asesor' : 'Bienvenido a Tigo'}</Text>
       </View>
 
-      <ThemedView style={{ padding: 16, flex: 1 }}>
+        <ThemedView style={{ padding: 16, flex: 1 }}>
         {/* Principal box: distinto contenido/colores para asesor vs usuario */}
         {usuario?.rol === 'asesor' ? (
           <View style={[styles.mainBox, styles.mainBoxAsesor]}>
@@ -123,6 +168,33 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {/* Search box (below main box and create button) */}
+        <View style={styles.searchBox}>
+          <TextInput
+            style={[globalStyles.input, styles.searchInput]}
+            placeholder="Buscar planes por nombre"
+            value={search}
+            onChangeText={setSearch}
+            returnKeyType="search"
+            accessible
+            accessibilityLabel="Buscar planes"
+          />
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Buscar"
+            style={styles.searchButton}
+            onPress={() => {
+              if (searchDebounceRef.current) {
+                clearTimeout(searchDebounceRef.current);
+                searchDebounceRef.current = null;
+              }
+              load(search);
+            }}
+          >
+            <Text style={styles.searchButtonText}>🔍</Text>
+          </TouchableOpacity>
+        </View>
+
         <ThemedText type="subtitle" style={{ marginTop: 12 }}>{usuario?.rol === 'asesor' ? 'Planes Activos' : 'Planes Disponibles'}</ThemedText>
 
         {loading ? (
@@ -132,7 +204,7 @@ export default function HomeScreen() {
         ) : planes.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={globalStyles.emptyState}>No hay planes disponibles</Text>
-            <TouchableOpacity style={[globalStyles.button, globalStyles.buttonPrimary, { marginTop: 12 }]} onPress={load}>
+            <TouchableOpacity style={[globalStyles.button, globalStyles.buttonPrimary, { marginTop: 12 }]} onPress={() => load()}>
               <Text style={globalStyles.buttonText}>Refrescar</Text>
             </TouchableOpacity>
           </View>
@@ -245,6 +317,77 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  promoBadge: {
+    marginTop: 6,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  promoText: {
+    color: '#92400E',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  priceHighlight: {
+    color: '#00AEEF',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  metaItem: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    marginRight: 20,
+    minWidth: 64,
+  },
+  metaIcon: {
+    fontSize: 18,
+  },
+  metaText: {
+    fontSize: 13,
+    color: '#4B5563',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.6,
+    borderColor: '#00AEEF',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    marginTop: 16,
+  },
+  searchInput: {
+    flex: 1,
+    borderWidth: 0,
+    height: 40,
+    paddingVertical: 0,
+    paddingHorizontal: 6,
+    textAlignVertical: 'center',
+  },
+  searchButton: {
+    marginLeft: 8,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#00AEEF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchButtonText: { fontSize: 16, color: '#fff' },
   buttonEdit: {
     backgroundColor: '#10B981',
     flex: 1,

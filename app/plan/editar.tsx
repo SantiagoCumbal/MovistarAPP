@@ -54,7 +54,7 @@ export default function EditarPlanScreen() {
       setIsNewImage(false);
     };
     load();
-  }, [id]);
+  }, [id, router]);
 
   const handleSeleccionarImagen = async () => {
     const uri = await seleccionarImagen();
@@ -162,14 +162,6 @@ const styles = StyleSheet.create({
   removeImage: { position: 'absolute', top: 8, right: 8, backgroundColor: '#00000066', width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   botonCrearFull: { marginTop: spacing.sm, padding: spacing.lg, alignSelf: 'stretch' },
 
-  /* New styles for polished layout */
-  headerBar: { backgroundColor: colors.background, paddingVertical: spacing.md + 20, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.md, position: 'relative' },
-  backButton: { position: 'absolute', left: spacing.md, padding: 14, borderRadius: 22, minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
-  backButtonText: { fontSize: fontSize.lg + 4, color: colors.primary, fontWeight: '800' },
-  roleBadge: { backgroundColor: colors.primary, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 12 },
-  roleBadgeText: { color: colors.white, fontSize: fontSize.xs, fontWeight: '700' },
-  headerTitle: { fontSize: fontSize.lg + 4, fontWeight: '800', marginTop: 6 },
   card: { backgroundColor: colors.white || '#fff', padding: spacing.md, borderRadius: borderRadius.md, marginTop: spacing.md, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
   label: { fontSize: fontSize.sm, fontWeight: '700', marginBottom: spacing.xs },
   labelSmall: { fontSize: fontSize.xs, color: '#666', marginBottom: spacing.xs },
