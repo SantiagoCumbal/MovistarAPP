@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 // Replaced ParallaxScrollView to avoid nesting a FlatList inside a ScrollView.
 import { ThemedText } from '@/components/themed-text';
